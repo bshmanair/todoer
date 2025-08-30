@@ -1,18 +1,3 @@
 {
-    "tasks": [
-    {
-        "id": 1,
-        "description": "Finish writing project documentation",
-        "status": "in-progress",
-        "createdAt": "2025-08-29T14:32:00Z",
-        "updatedAt": "2025-08-30T01:15:00Z"
-    },
-    {
-        "id": 2,
-        "description": "Buy groceries for the week",
-        "status": "not-done",
-        "createdAt": "2025-08-29T15:45:00Z",
-        "updatedAt": "2025-08-29T15:45:00Z"
-    }
-    ]
+    "tasks": []
 }
