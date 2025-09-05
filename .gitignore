@@ -4,6 +4,7 @@ output
 test
 task-cli
 .vscode
+tasks.json
 
 # Prerequisites
 *.d
