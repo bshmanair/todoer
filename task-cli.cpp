@@ -1,19 +1,22 @@
+// TODO: Function for creating date and time (createdAt, updatedAt)
+// TODO: Checking if task id already exists and update date and time (updateAt)
+// TODO: Function for updating status
+// TODO: Function to list all tasks (optionally allow by status)
+// TODO: Function to mark status
+// TODO: Function to update a task
+// TODO: Function to delete a task
+// TODO: Fix Makefile
+
+// Future plan: subtasks, tags
+
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
-/*
-TODO: Check if file exists, if not create it. If file exists but isn't JSON, fail fast.
-Not accepting extra arguments beyond the necessiry
-*/
+namespace fs = std::filesystem;
+using nlohmann::json;
 
-enum Status
-{
-    NOT_DONE,
-    DONE,
-    IN_PROGRESS
-};
 typedef struct Task
 {
     int id;
@@ -23,66 +26,117 @@ typedef struct Task
     std::string updatedAt;
 } Task;
 
-// function for creating date and time
-nlohmann::json addTask(nlohmann::json j, std::string task)
-{
-    j["sequence"] = j["sequence"] + 1;
-    Task res;
-}
+// Functions
+json addTask(json j, Task task);
+std::fstream openTasksFile(const fs::path &path);
+
+const std::string filename = "tasks.json";
+std::fstream file = openTasksFile(filename);
+json jsonData;
 
 int main(int argc, char **argv)
 {
-
-    std::string filename = "tasks.json";
-    std::fstream file;
-
-    bool fileExists = std::filesystem::exists(filename);
-
-    if (fileExists) // confirm valid json
+    file >> jsonData;
+    try
     {
-        file.open(filename, std::ios::in | std::ios::out);
-        if (!file.is_open())
+        json jsonData;
+        file.seekg(0, std::ios::beg);
+        file >> jsonData;
+
+        if (argc < 2)
         {
-            std::cerr << "Failed to open existing file.\n";
+            std::cerr << "Usage: task-cli add <description> [status]\n";
             return 1;
         }
 
-        bool validJSON = nlohmann::json::accept(file);
-        if (validJSON)
+        const std::string cmd = argv[1];
+        if (cmd == "add")
         {
-            std::cout << "File exists and is valid.\n";
+            if (argc < 3)
+            {
+                std::cerr << "Usage: task-cli add <description> [status]\n";
+                return 1;
+            }
+
+            const std::string description = argv[2];
+            const std::string status = (argc >= 4) ? argv[3] : "NOT_DONE";
+
+            Task t{};
+            t.id = 0;
+            t.description = description;
+            t.status = status;
+            t.createdAt = "";
+            t.updatedAt = "";
+
+            jsonData = addTask(jsonData, t);
+
+            std::ofstream out(filename, std::ios::out | std::ios::trunc);
+            if (!out)
+            {
+                std::cerr << "Failed to write updated data.\n";
+                return 1;
+            }
+            out << jsonData.dump(4) << '\n';
+
+            std::cout << "Task added.\n";
         }
         else
         {
-            std::cerr << "File exists but is not valid JSON, exiting...\n";
-            std::exit(1);
-        }
-        file.clear();
-        file.seekg(0, std::ios::beg);
-    }
-    else if (!fileExists) // create default schema if file doesn't exist
-    {
-        std::cout << "File does not exist, creating with default schema...";
-        nlohmann::json defaultSchema = {{"sequence", 0}, {"tasks", nlohmann::json::array()}};
-        {
-            std::ofstream newFile(filename);
-            newFile << defaultSchema.dump(4);
-        }
-        file.open(filename, std::ios::in | std::ios::out);
-        if (!file.is_open())
-        {
-            std::cerr << "Failed to open newly created file.\n";
+            std::cerr << "Unknown command: " << cmd << "\n";
             return 1;
         }
+
+        return 0;
     }
-
-    // deserialize
-    nlohmann::json jsonData = nlohmann::json::parse(file);
-
-    if (argc == 3 && argv[1] == "add")
+    catch (const std::exception &e)
     {
-        jsonData = addTask(jsonData, argv[2]);
+        std::cerr << "Error: " << e.what() << '\n';
+        return 1;
+    }
+}
+
+std::fstream openTasksFile(const fs::path &path)
+{
+    if (fs::exists(path))
+    {
+        std::ifstream in(path, std::ios::in);
+        if (!in)
+        {
+            throw std::runtime_error("Failed to open existing file for validation.");
+        }
+        const std::string content{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+        if (!json::accept(content))
+        {
+            throw std::runtime_error("File exists but is not valid JSON.");
+        }
+    }
+    else
+    {
+        json defaultSchema = {{"sequence", 0}, {"tasks", json::array()}};
+        std::ofstream out(path, std::ios::out | std::ios::trunc);
+        if (!out)
+        {
+            throw std::runtime_error("Failed to create new file.");
+        }
+        out << defaultSchema.dump(4) << '\n';
     }
 
-    return 0;
+    std::fstream file(path, std::ios::in | std::ios::out);
+    if (!file)
+    {
+        throw std::runtime_error("Failed to open file for read/write.");
+    }
+    return file;
+}
+
+json addTask(json j, Task task)
+{
+    json taskJson = {
+        {"id", task.id},
+        {"description", task.description},
+        {"status", task.status},
+        {"createdAt", task.createdAt},
+        {"updatedAt", task.updatedAt}};
+    j["tasks"].push_back(taskJson);
+    return j;
 }
