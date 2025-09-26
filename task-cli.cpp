@@ -25,7 +25,7 @@ typedef struct Task
 json addTask(json j, Task task);
 std::fstream openTasksFile(const fs::path &path); // done
 std::string getTime();                            // done
-// json updateDescription(json j, int id, const std::string newDescription);
+json updateDescription(json j, int id, const std::string newDescription);
 // json updateStatus(json j, int id, const std::string newStatus);
 const std::string filename = "todo.json";
 std::fstream file = openTasksFile(filename);
@@ -64,12 +64,7 @@ int main(int argc, char **argv)
             const std::string description = argv[2];
             const std::string status = (argc >= 4) ? argv[3] : "NOT_DONE";
 
-            Task t{
-                t.id = 0,
-                t.description = description,
-                t.status = status,
-                t.createdAt = getTime(),
-                t.updatedAt = getTime()};
+            Task t{0, description, status, getTime(), getTime()};
 
             jsonData = addTask(jsonData, t);
 
@@ -182,9 +177,9 @@ std::fstream openTasksFile(const fs::path &path)
     return file;
 }
 
-json addTask(json j, Task task) // needs fix
+json addTask(json j, Task task)
 {
-    auto &idsNode = j["ids"];
+    auto &idsNode = j.at("ids");
     if (!idsNode.is_array())
     {
         throw std::runtime_error("\"ids\" must be an array in the JSON schema.");
@@ -205,22 +200,22 @@ json addTask(json j, Task task) // needs fix
         {"createdAt", task.createdAt},
         {"updatedAt", task.updatedAt}};
 
-    j["tasks"].push_back(taskJson);
-    j["ids"].push_back(task.id);
+    j.at("tasks").push_back(taskJson);
+    j.at("ids").push_back(task.id);
 
     return j;
 }
 
 json getTaskById(const json &j, int id)
 {
-    if (!j.contains("tasks") || !j["tasks"].is_array())
+    if (!j.contains("tasks") || !j.at("tasks").is_array())
     {
         throw std::runtime_error("\"tasks\" must be an array in the JSON schema.");
     }
 
-    for (const auto &task : j["tasks"])
+    for (const auto &task : j.at("tasks"))
     {
-        if (task.contains("id") && task["id"].is_number_integer() && task["id"] == id)
+        if (task.contains("id") && task.at("id").is_number_integer() && task.at("id") == id)
         {
             return task;
         }
@@ -229,21 +224,20 @@ json getTaskById(const json &j, int id)
     throw std::runtime_error("Task with id " + std::to_string(id) + " not found.");
 }
 
-/*
 json updateDescription(json jsonData, int id, const std::string newDescription)
 {
     json task = getTaskById(jsonData, id);
-    jsonData["tasks"]
+    jsonData.at("task").at()
+    return 
 }
-*/
 
 bool taskExists(json j, int id)
 {
-    if (!j.contains("ids") || !j["ids"].is_array())
+    if (!j.contains("ids") || !j.at("ids").is_array())
     {
         return false;
     }
-    std::vector<int> ids = j["ids"].get<std::vector<int>>();
+    std::vector<int> ids = j.at("ids").get<std::vector<int>>();
     return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
 
