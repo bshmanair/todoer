@@ -4,8 +4,7 @@ TODO.md
 output
 test
 task-cli
-.vscode
-tasks.json
+todo.json
 
 # Prerequisites
 *.d

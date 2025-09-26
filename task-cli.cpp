@@ -4,6 +4,10 @@
 #include <string>
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <vector>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace fs = std::filesystem;
 using nlohmann::json;
@@ -19,19 +23,23 @@ typedef struct Task
 
 // Functions
 json addTask(json j, Task task);
-std::fstream openTasksFile(const fs::path &path);
-std::string getTime();
-json updateDescription(json j, int id, const std::string newDescription);
-json updateStatus(json j, int id, const std::string newStatus);
-bool taskExists(json j, int id);
-
-const std::string filename = "tasks.json";
+std::fstream openTasksFile(const fs::path &path); // done
+std::string getTime();                            // done
+// json updateDescription(json j, int id, const std::string newDescription);
+// json updateStatus(json j, int id, const std::string newStatus);
+const std::string filename = "todo.json";
 std::fstream file = openTasksFile(filename);
+bool taskExists(json jsonData, int id);
+
 json jsonData;
+
+void debugprint()
+{
+    std::cout << "This is a debug line and it worked." << std::endl;
+}
 
 int main(int argc, char **argv)
 {
-    file >> jsonData;
     try
     {
         json jsonData;
@@ -40,7 +48,7 @@ int main(int argc, char **argv)
 
         if (argc < 2)
         {
-            std::cerr << "Usage: task-cli add <description> [status]\n";
+            std::cerr << "Usage: ./task-cli add <description> [status]\n";
             return 1;
         }
 
@@ -56,12 +64,12 @@ int main(int argc, char **argv)
             const std::string description = argv[2];
             const std::string status = (argc >= 4) ? argv[3] : "NOT_DONE";
 
-            Task t{};
-            t.id = 0;
-            t.description = description;
-            t.status = status;
-            t.createdAt = getTime();
-            t.updatedAt = getTime();
+            Task t{
+                t.id = 0,
+                t.description = description,
+                t.status = status,
+                t.createdAt = getTime(),
+                t.updatedAt = getTime()};
 
             jsonData = addTask(jsonData, t);
 
@@ -77,7 +85,7 @@ int main(int argc, char **argv)
         }
         else if (cmd == "update")
         {
-            if (argc < 3)
+            if (argc < 4)
             {
                 std::cerr << "Usage: ./task-cli update <id> [New description]\n";
                 return 1;
@@ -89,7 +97,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             const std::string newDescription = argv[3];
-            updateDescription(jsonData, id, newDescription);
+            // updateDescription(jsonData, id, newDescription);
         }
         else if (cmd == "mark-in-progress")
         {
@@ -99,7 +107,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             int id = std::stoi(argv[2]);
-            updateStatus(jsonData, id, "IN_PROGRESS");
+            // updateStatus(jsonData, id, "IN_PROGRESS");
         }
         else if (cmd == "mark-done")
         {
@@ -109,7 +117,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             int id = std::stoi(argv[2]);
-            updateStatus(jsonData, id, "DONE");
+            // updateStatus(jsonData, id, "DONE");
         }
         else if (cmd == "mark-not-done")
         {
@@ -119,10 +127,11 @@ int main(int argc, char **argv)
                 return 1;
             }
             int id = std::stoi(argv[2]);
-            updateStatus(jsonData, id, "NOT_DONE");
+            // updateStatus(jsonData, id, "NOT_DONE");
         }
         else if (cmd == "list")
         {
+            // TBD
         }
         else
         {
@@ -173,35 +182,68 @@ std::fstream openTasksFile(const fs::path &path)
     return file;
 }
 
-json addTask(json jsonData, Task task) // needs fix
+json addTask(json j, Task task) // needs fix
 {
-    std::vector<int> ids = jsonData.get<std::vector<int>>();
-    if (ids.empty())
+    auto &idsNode = j["ids"];
+    if (!idsNode.is_array())
     {
-        task.id = 0;
+        throw std::runtime_error("\"ids\" must be an array in the JSON schema.");
     }
-    task.id = *std::max_element(ids.begin(), ids.end()) + 1;
+    std::vector<int> ids = idsNode.get<std::vector<int>>();
+
+    int nextId = 0;
+    if (!ids.empty())
+    {
+        nextId = *std::max_element(ids.begin(), ids.end()) + 1;
+    }
+    task.id = nextId;
+
     json taskJson = {
         {"id", task.id},
         {"description", task.description},
         {"status", task.status},
         {"createdAt", task.createdAt},
         {"updatedAt", task.updatedAt}};
-    jsonData["tasks"].push_back(taskJson);
-    return jsonData;
+
+    j["tasks"].push_back(taskJson);
+    j["ids"].push_back(task.id);
+
+    return j;
 }
 
+json getTaskById(const json &j, int id)
+{
+    if (!j.contains("tasks") || !j["tasks"].is_array())
+    {
+        throw std::runtime_error("\"tasks\" must be an array in the JSON schema.");
+    }
+
+    for (const auto &task : j["tasks"])
+    {
+        if (task.contains("id") && task["id"].is_number_integer() && task["id"] == id)
+        {
+            return task;
+        }
+    }
+
+    throw std::runtime_error("Task with id " + std::to_string(id) + " not found.");
+}
+
+/*
 json updateDescription(json jsonData, int id, const std::string newDescription)
 {
-    json taskJson =
-    {
-
-    }
+    json task = getTaskById(jsonData, id);
+    jsonData["tasks"]
 }
+*/
 
-bool taskExists(json jsonData, int id)
+bool taskExists(json j, int id)
 {
-    std::vector<int> ids = jsonData.get<std::vector<int>>();
+    if (!j.contains("ids") || !j["ids"].is_array())
+    {
+        return false;
+    }
+    std::vector<int> ids = j["ids"].get<std::vector<int>>();
     return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
 
