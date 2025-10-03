@@ -4,6 +4,7 @@ output
 test
 task-cli
 todo.json
+task-cli-debug
 
 # Prerequisites
 *.d
