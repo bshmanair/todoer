@@ -2,6 +2,7 @@ notes.md
 test.cpp
 output
 test
+build/
 task-cli
 todo.json
 task-cli-debug
