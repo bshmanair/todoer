@@ -1,80 +1,62 @@
-# Minimal, high-safety Makefile (Linux)
-# Targets: debug (ASan+UBSan), tsan (ThreadSanitizer), release (hardened)
+BUILD_DIR := build
+APP := app
+TYPE ?= Debug
+COMPILER := clang++
 
-.SILENT:
-.PHONY: all debug tsan release run-debug run-tsan run-release clean
+SRCS := $(shell find src -name '*.cpp' -o -name '*.hpp' -o -name '*.h' 2>/dev/null)
 
-# --- config ---
-CXX      ?= g++
-SRC       = task-cli.cpp
-BIN       = task-cli
+.PHONY: all run debug gdb tidy valgrind asan clean reconfigure
 
-WARNINGS = -Wall -Wextra -Wpedantic -Werror \
-           -Wconversion -Wsign-conversion -Wshadow \
-           -Wformat=2 -Wnull-dereference -Wdouble-promotion \
-           -Wimplicit-fallthrough -Wundef -Wnon-virtual-dtor
+all: build
 
-# Generate dep files for correct incremental rebuilds
-DEPFLAGS = -MMD -MP
+# 1. Configuration (No more 'rm -rf' here)
+$(BUILD_DIR)/build.ninja: CMakeLists.txt
+	@echo "--- Configuring project ($(TYPE)) ---"
+	mkdir -p $(BUILD_DIR)
+	cmake -S . -B $(BUILD_DIR) -G Ninja \
+		-DCMAKE_BUILD_TYPE=$(TYPE) \
+		-DCMAKE_CXX_COMPILER=$(COMPILER) \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
 
-# Common link flags (empty for now; set per target)
-LDFLAGS  =
+# 2. The Build Target (Depends on source files)
+$(BUILD_DIR)/$(APP): $(SRCS) $(BUILD_DIR)/build.ninja
+	@echo "--- Building $(APP) ---"
+	@ninja -C $(BUILD_DIR)
 
-all: debug
+build: $(BUILD_DIR)/$(APP)
 
-# --- Debug: ASan + UBSan (fast, catches most memory/UB) ---
-debug: CXXFLAGS = -O1 -g $(WARNINGS) $(DEPFLAGS) \
-                  -fsanitize=address,undefined -fno-omit-frame-pointer \
-                  -D_GLIBCXX_ASSERTIONS
-debug: LDFLAGS  = -fsanitize=address,undefined
-debug: $(BIN)-debug
+# 3. Running & Debugging
+run: $(BUILD_DIR)/$(APP)
+	./$(BUILD_DIR)/$(APP)
 
-$(BIN)-debug: $(SRC:.cpp=.debug.o)
-	$(CXX) $^ -o $@ $(LDFLAGS)
+debug:
+	$(MAKE) build TYPE=Debug
 
-%.debug.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+gdb: debug
+	gdb ./$(BUILD_DIR)/$(APP)
 
-run-debug: debug
-	ASAN_OPTIONS=halt_on_error=1:strict_string_checks=1:detect_stack_use_after_return=1 \
-	UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
-	./$(BIN)-debug
+# 4. Specialized Tools (Restored)
+asan:
+	@echo "--- Building with AddressSanitizer ---"
+	mkdir -p $(BUILD_DIR)_asan
+	cmake -S . -B $(BUILD_DIR)_asan -G Ninja \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DUSE_SANITIZERS=ON \
+		-DCMAKE_CXX_COMPILER=$(COMPILER)
+	ninja -C $(BUILD_DIR)_asan
+	./$(BUILD_DIR)_asan/$(APP)
 
-# --- ThreadSanitizer build (separate job; can’t mix with ASan) ---
-tsan: CXXFLAGS = -O1 -g $(WARNINGS) $(DEPFLAGS) \
-                 -fsanitize=thread -fno-omit-frame-pointer \
-                 -D_GLIBCXX_ASSERTIONS
-tsan: LDFLAGS  = -fsanitize=thread
-tsan: $(BIN)-tsan
+valgrind: debug
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(BUILD_DIR)/$(APP)
 
-$(BIN)-tsan: $(SRC:.cpp=.tsan.o)
-	$(CXX) $^ -o $@ $(LDFLAGS)
+tidy: $(BUILD_DIR)/build.ninja
+	run-clang-tidy -p $(BUILD_DIR) -fix -header-filter='^src/.*' -- -system-headers=0
 
-%.tsan.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-run-tsan: tsan
-	TSAN_OPTIONS=halt_on_error=1 ./$(BIN)-tsan
-
-# --- Hardened release (mitigations on; no sanitizers) ---
-release: CXXFLAGS = -O2 -DNDEBUG $(WARNINGS) $(DEPFLAGS) \
-                    -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
-                    -fstack-clash-protection -fPIE
-release: LDFLAGS  = -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
-release: $(BIN)
-
-$(BIN): $(SRC:.cpp=.rel.o)
-	$(CXX) $^ -o $@ $(LDFLAGS)
-
-%.rel.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-run-release: release
-	./$(BIN)
-
+# 5. Maintenance
 clean:
-	rm -f $(BIN) $(BIN)-debug $(BIN)-tsan \
-	      *.debug.o *.tsan.o *.rel.o *.d
+	rm -rf $(BUILD_DIR) $(BUILD_DIR)_asan compile_commands.json
 
-# Include dep files if present
--include *.d
+reconfigure:
+	rm -rf $(BUILD_DIR)
+	$(MAKE) build

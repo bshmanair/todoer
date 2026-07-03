@@ -1,0 +1,13 @@
+Checks: >
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*
+  -readability-identifier-length
+  -bugprone-easily-swappable-parameters
+
+WarningsAsErrors: ""
+
+HeaderFilterRegex: "^src/.*"
+
+FormatStyle: none

@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - -std=c++26
+    - -Wno-c++98-compat
+    - -Wno-c++98-compat-pedantic
+  Remove:
+    - -fmodule-mapper*
+    - -fmodules-ts
+    - -fdeps-format*
+    - -fpreprocessed

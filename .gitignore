@@ -1,11 +1,6 @@
-notes.md
-test.cpp
-output
-test
+data/
 build/
-task-cli
-todo.json
-task-cli-debug
+.cache
 
 # Prerequisites
 *.d
