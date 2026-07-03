@@ -1,5 +1,5 @@
 BUILD_DIR := build
-APP := app
+APP := task-cli
 TYPE ?= Debug
 COMPILER := clang++
 
